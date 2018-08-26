@@ -9,6 +9,7 @@ class ServerData:
         self.youtubePlayerPaused = False
         self.youtubePlayList = []
         self.youtubePlayPosition = 0
+        self.youtubeSearchList = []
         self.filePlayer = None
         self.filePlayerPlaying = False
         self.omokboard = None

@@ -11,15 +11,15 @@ class Log:
 
     @staticmethod
     def i(str, end="\n"):
-        print(Fore.CYAN + str, end=end)
+        print(Fore.CYAN + str + Fore.WHITE, end=end)
         
     @staticmethod
     def w(str, end="\n"):
-        print(Fore.YELLOW + str, end=end)
+        print(Fore.YELLOW + str + Fore.WHITE, end=end)
         
     @staticmethod
     def e(str, end="\n"):
-        print(Fore.RED + str, end=end)
+        print(Fore.RED + str + Fore.WHITE, end=end)
         
     @staticmethod
     def line():

@@ -4,15 +4,16 @@ import asyncio
 import discord
 import time
 import os
+import subprocess
 import threading
 import Util
+import json
 from gtts import gTTS
 from Logger import Log
 from ServerData import *
 from BotStateData import *
 from game.OmokBoard import *
 from midiutil.MidiFile import MIDIFile
-from midi2audio import FluidSynth
 
 PATH = os.path.dirname(os.path.realpath(__file__))
 client = discord.Client()
@@ -91,6 +92,8 @@ async def on_voice_state_update(before, after):
             name = after.name
             nick = after.nick
             text = ""
+            if (nick == "이강인"):
+                await playAudio(serverDatas[after.server.name], PATH + "\\res\\sound\\강인_아베마리아.mp3")
             if (nick == None):
                 text = name + "님이 보이스 채널에 들어왔습니다."
             elif (nick != None):
@@ -115,7 +118,15 @@ async def processCommand(data):
     cmdLen = len(cmd)
     
     try:
-        if (cmd[0] == "집"):
+        if (msgContent.replace(" ", "") == "우연히"):
+            await playAudio(data, PATH + "\\res\\sound\\우연히.mp3")
+        elif (msgContent.replace(" ", "") == "우흥"):
+            await playAudio(data, PATH + "\\res\\sound\\우흥.mp3")
+        elif (msgContent.replace(" ", "") == "판깨잔말입니까"):
+            await playAudio(data, PATH + "\\res\\sound\\판깨잔말입니까.mp3")
+        elif (msgContent.replace(" ", "") == "부끄러운줄알아야지"):
+            await playAudio(data, PATH + "\\res\\sound\\부끄러운줄알아야지.mp3")
+        elif (cmd[0] == "집"):
             
             if (state.working == True):
                 await client.send_message(data.message.channel, "다른 명령을 처리하고 있어요. 기다려 주세요.")
@@ -137,13 +148,20 @@ async def processCommand(data):
             if (cmdLen >= 2):
                 if (cmd[1] == "핑"):
                     await client.send_message(data.message.channel, "퐁")
+                elif (cmd[1] == "헬프"):
+                    if (cmdLen == 2):
+                        await client.send_message(data.message.channel, "**``집 헬프``** ```집 도움말``` **``집 핑``** ```집이 죽었는지 확인합니다.``` **``집 나가``** ```집을 보이스채널에서 추방``` **``집 꺼져``** ```집을 로그아웃 시킵니다. 나만 사용가능하게 할거임``` **``집 일시정지``** ```재생중이던 노래를 일시정지``` **``집 정지``** ```재생중이던 노래를 정지``` **``집 재생``** ```일시정지/정지된 노래를 재생``` **``집 재생목록``** ```현재 재생목록을 보여줍니다.``` **``집 재생목록 ``__``숫자``__** ```선택한 번호를 재생합니다.``` **``집 재생목록 저장``** ```현재 재생목록을 저장합니다.``` **``집 재생목록 로드``** ```저장된 재생목록을 불러옵니다.``` **``집 다음``** ```재생목록에서 현재의 다음에 저장된 노래를 재생합니다.``` **``집 유튜브 ``__``검색어``__** ```유튜브에서 검색결과의 가장 첫번째를 재생목록에 저장합니다.``` **``집 유튜브검색 ``__``검색어``__** ```유튜브에서 검색결과의 5개를 불러옵니다.``` **``집 선택 ``__``숫자``__** ```유튜브검색에서 찾은 결과중 선택한 목록을 재생목록에 추가합니다.``` **``집 볼륨 ``__``숫자``__** ```볼륨을 조절합니다. -∞~200``` **``집 삭제 ``__``숫자``__** ```선택한 목록을 재생목록에서 삭제합니다.``` **``집 tts ``__``문자열``__** ```Text To Speech로 음성메세지를 전달합니다.```")
+                    else:
+                        arg = msgContent.split("집 헬프 ")[1]
+                    
                 elif (cmd[1] == "나가"):
                     if (bot_voiceChannel == None):
                         await client.send_message(data.message.channel, "이미 보이스 채널에서 나가있었어요.")
                     else:
                         await voiceClient.disconnect()
                 elif (cmd[1] == "꺼져"):
-                    await client.logout()
+                    if (data.message.author.name == "lwh"):
+                        await client.logout()
                 elif (cmd[1] == "일시정지"):
                     if (bot_voiceChannel == None or data.youtubePlayer == None or data.youtubePlayer.is_playing() == False):
                         await client.send_message(data.message.channel, "틀고 있지 않았어요.")
@@ -157,7 +175,10 @@ async def processCommand(data):
                         data.youtubePlayer.stop()
                 elif (cmd[1] == "재생"):
                     if (bot_voiceChannel == None or data.youtubePlayer == None):
-                        await client.send_message(data.message.channel, "틀 수 없어요.")
+                        if (len(data.youtubePlayList) > 0):
+                            await youtubePlay(data)
+                        else:
+                            await client.send_message(data.message.channel, "틀 수 없어요.")
                     elif (data.youtubePlayer != None and data.youtubePlayer.is_playing() == True):
                         await client.send_message(data.message.channel, "이미 틀고 있었어요.")
                     else:
@@ -175,9 +196,22 @@ async def processCommand(data):
                             embed = genYTPlayListEmbed(data.youtubePlayList)
                             await client.send_message(data.message.channel, str(count) + "개의 목록이 있어요.", embed=embed)
                     else:
-                        pos = int(cmd[2])
-                        data.youtubePlayPosition = pos - 1
-                        await youtubePlay(data)
+                        if (cmd[2].isdigit() == True):
+                            pos = int(cmd[2])
+                            data.youtubePlayPosition = pos - 1
+                            await youtubePlay(data)
+                        else:
+                            if (cmd[2] == "저장"):
+                                if (savePlayList(data) == True):
+                                    await client.send_message(data.message.channel, str(len(data.youtubePlayList)) + "개의 목록을 저장했어요.")
+                                else:
+                                    await client.send_message(data.message.channel, "저장하는중에 오류가 발생했어요. 원인은 모르겠네요.")
+                            elif (cmd[2] == "로드"):
+                                if (loadPlayList(data) == True):
+                                    embed = genYTPlayListEmbed(data.youtubePlayList)
+                                    await client.send_message(data.message.channel, str(len(data.youtubePlayList)) + "개의 목록을 불러왔어요.", embed=embed)
+                                else:
+                                    await client.send_message(data.message.channel, "재생목록을 불러올 수 없어요.")
                 elif (cmd[1] == "다음"):
                     count = len(data.youtubePlayList)
                     if (count == 0):
@@ -187,7 +221,9 @@ async def processCommand(data):
                             await client.send_message(data.message.channel, "틀 수 없어요.")
                         else:
                             await youtubePlayNext(data)
-                
+                            
+                elif (cmd[1] == "테스트"):
+                    exec(compile(readFile(PATH + "\\eval.py"), "<string>", "exec"))
                         
             if (cmdLen >= 3):
                 if (cmd[1] == "유튜브"):
@@ -202,7 +238,6 @@ async def processCommand(data):
                     await client.edit_message(msg, msg.content + "\n찾았어요.")
                     embed = genYTEmbed(ytdata)
                     await client.edit_message(msg, embed=embed)
-                    #await client.send_message(data.message.channel, embed=embed)
                     
                     serverDatas[data.server.name].youtubePlayList.append(ytdata)
                     
@@ -223,9 +258,9 @@ async def processCommand(data):
                     
                     msg = await client.send_message(data.message.channel, "``" + query + "`` 를 유튜브에서 검색할게요.")
                     
-                    ytdataList = await Util.getYTData(query, 5)
+                    data.youtubeSearchList = await Util.getYTData(query, 5)
                     await client.edit_message(msg, msg.content + "\n5개의 리스트를 찾았어요.")
-                    embed = genYTListEmbed(ytdataList)
+                    embed = genYTListEmbed(data.youtubeSearchList)
                     await client.edit_message(msg, embed=embed)
                 elif (cmd[1] == "볼륨"):
                     
@@ -237,10 +272,10 @@ async def processCommand(data):
                     
                     index = int(msgContent.split("집 삭제 ")[1])
                     
-                    if (index >= len(data.youtubePlayList) or index < 0):
+                    if (index > len(data.youtubePlayList) or index < 1):
                         await client.send_message(data.message.channel, "삭제할 수 없어요.")
                     else:
-                        await client.send_message(data.message.channel, data.youtubePlayList[index - 1]["title"] + "를 재생목록에서 삭제할게요.")
+                        await client.send_message(data.message.channel, "''" + data.youtubePlayList[index - 1]["title"] + "'' 를 재생목록에서 삭제할게요.")
                         data.youtubePlayList.remove(data.youtubePlayList[(index - 1):index][0])
                         if ((index - 1) <= data.youtubePlayPosition):
                             data.youtubePlayPosition -= 1
@@ -305,7 +340,46 @@ async def processCommand(data):
                         await client.send_file(data.message.channel, PATH + "\\res\\nomoticon\\tight.gif")
                     elif (nomoName == "왕"):
                         await client.send_file(data.message.channel, PATH + "\\res\\nomoticon\\wang.gif")
-            
+                
+                elif (cmd[1] == "집모티콘"):
+                
+                    gibmoName = msgContent.split("집 집모티콘 ")[1]
+                    
+                    if (gibmoName == "몸캠"):
+                        await client.send_file(data.message.channel, PATH + "\\res\\gibmoticon\\momcam.png")
+                    elif (gibmoName == "휙탁"):
+                        await client.send_file(data.message.channel, PATH + "\\res\\gibmoticon\\whicktack.mp4")
+                        
+                elif (cmd[1] == "선택"):
+                    select = int(msgContent.split("집 선택 ")[1])
+                    if (data.youtubeSearchList == None or select < 1 or select > len(data.youtubeSearchList)):
+                        await client.send_message(data.message.channel, "선택할 수 없어요.")
+                    else:
+                        ytdata = data.youtubeSearchList[select - 1]
+                        embed = genYTEmbed(ytdata)
+                        msg = await client.send_message(data.message.channel, embed=embed)
+                        
+                        serverDatas[data.server.name].youtubePlayList.append(ytdata)
+                        
+                        if (data.youtubePlayer != None and data.youtubePlayer.is_playing() == True):
+                            await client.edit_message(msg, "재생목록에 추가할게요.")
+                            
+                            embed = genYTPlayListEmbed(data.youtubePlayList)
+                            await client.send_message(data.message.channel, embed=embed)
+                        else:
+                            await client.edit_message(msg, "재생 준비가 끝나면 바로 재생할게요.")
+                            await youtubePlay(data)
+                            
+                elif (cmd[1] == "상세"):
+                    select = int(msgContent.split("집 상세 ")[1])
+                    if (data.youtubeSearchList == None or select < 1 or select > len(data.youtubeSearchList)):
+                        await client.send_message(data.message.channel, "선택할 수 없어요.")
+                    else:
+                        ytdata = data.youtubeSearchList[select - 1]
+                        embed = await genYTDetailEmbed(data, ytdata)
+                        await client.send_message(data.message.channel, embed=embed)
+                        
+                            
             if (cmdLen >= 4):
                 if (cmd[1] == "오목"):
                     if (data.omokPlaying == False):
@@ -501,7 +575,7 @@ def genMidiString2MidiCode(arr):
     return list
             
 async def playMidi(data, arr):
-    dir = PATH + "\\res\\" + data.server.name
+    dir = PATH + "\\res\\" + data.server.name + "\\midi.mid"
     
     mf = MIDIFile(1)
     mf.addTrackName(0, 0, "Sample Track")
@@ -509,14 +583,16 @@ async def playMidi(data, arr):
     
     for i in range(0, len(arr)):
         mf.addNote(0, 0, arr[i], i, 1, 100)
+        
+    mf.addNote(0, 0, 0, len(arr), 1, 0)
     
-    with open(dir + "\\midi.mid", 'wb') as outf:
+    with open(dir, 'wb') as outf:
         mf.writeFile(outf)
-        
-    await client.send_file(data.message.channel, dir + "\\midi.mid")
-        
-    #FluidSynth().midi_to_audio(PATH + "\\res\\" + data.server.name + "\\midi.mid", PATH + "\\res\\" + data.server.name + "\\midi.wav")
+    
+    await client.send_file(data.message.channel, dir)
     '''
+    subprocess.call ('D:\\lame\\lame ' + dir, shell=True)
+    
     if (data.youtubePlayer != None and data.youtubePlayer.is_playing() == True):
         data.youtubePlayer.pause()
         data.youtubePlayerPaused = True
@@ -525,12 +601,12 @@ async def playMidi(data, arr):
         await asyncio.sleep(1)
         
     if (data.youtubePlayerPaused == True):
-        data.filePlayer = data.message.server.voice_client.create_ffmpeg_player(PATH + "\\res\\" + data.server.name + "\\midi.mid", after= (lambda:
+        data.filePlayer = data.message.server.voice_client.create_ffmpeg_player(dir + ".mp3", after= (lambda:
                 resumePausedYTPlayer(data)
             )
         )
     else:
-        data.filePlayer = data.message.server.voice_client.create_ffmpeg_player(PATH + "\\res\\" + data.server.name + "\\midi.mid")
+        data.filePlayer = data.message.server.voice_client.create_ffmpeg_player(dir + ".mp3")
         
     data.filePlayer.start()'''
     
@@ -551,6 +627,58 @@ async def playAudio(data, file):
         data.filePlayer = data.message.server.voice_client.create_ffmpeg_player(file)
         
     data.filePlayer.start()
+    
+async def genYTDetailEmbed(data, ytdata):
+    _player = await data.message.server.voice_client.create_ytdl_player(ytdata["url"])
+    '''Log.i("\tTitle:    " + str(_player.title))
+    Log.i("\tDes:      " + str(_player.description))
+    Log.i("\tUploader: " + str(_player.uploader))
+    Log.i("\tUp_Date:  " + str(_player.upload_date))
+    Log.i("\tLikes:    " + str(_player.likes))
+    Log.i("\tDISLIKES: " + str(_player.dislikes))
+    Log.i("\tVIEWS:    " + str(_player.views))'''
+    embed = discord.Embed(title=str(ytdata["title"]) + " ``" + ytdata["time"] + "``", description="```\n" +
+                                                                                                  "업로더: " + str(_player.uploader) + "\n" + 
+                                                                                                  "업로드 날짜: " + str(_player.upload_date) + "\n" + 
+                                                                                                  "좋아요: " + str(_player.likes) + "\n" +
+                                                                                                  "싫어요: " + str(_player.dislikes) + "\n" + 
+                                                                                                  "조회수: " + str(_player.views) + "\n```")
+    embed.set_thumbnail(url=ytdata["img"])
+    return embed
+    
+    
+def loadPlayList(data):
+    data.youtubePlayPosition = 0
+    dir = PATH + "\\res\\" + data.server.name + "\\playlist.dat"
+    if (os.path.isfile(dir) == False):
+        return False
+        
+    f = open(dir)
+    data.youtubePlayList = json.load(f)
+    f.close()
+    
+    return True
+    
+def savePlayList(data):
+    try:
+        dir = PATH + "\\res\\" + data.server.name + "\\playlist.dat"
+        jsonStr = json.dumps(data.youtubePlayList)
+        writeFile(dir, jsonStr)
+    except:
+        return False
+        
+    return True
+    
+def writeFile(file, content):
+    f = open(file, "w")
+    f.write(content)
+    f.close()
+    
+def readFile(file):
+    f = open(file, "r")
+    data = f.read()
+    f.close()
+    return data
     
 def login(index):
     Log.line()
