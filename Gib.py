@@ -23,11 +23,11 @@ state = State()
 TOKEN = [
     {
         "name": "LwhTest",
-        "token": "NDE3MjQ4NzM4OTIzMzgwNzM2.Dj7CeA.mIlZyfgS7htnt-5LJON7-UuyACk",
+        "token": "aaaaaaaaaaaaaa",
     },
     {
         "name": "Gib_beta",
-        "token": "NDcyNDA2NTg1MjIyNzU4NDAx.Dj31AA.tr1iAfTuiBfNw8jGAzcc5gABfSk"
+        "token": "aaaaaaaaaaaaaa"
     }
 ]
 
